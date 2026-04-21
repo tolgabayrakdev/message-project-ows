@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import db from '../config/database.js';
+import { getDb, saveDb } from '../config/database.js';
 
 const JWT_SECRET = 'chat-secret-key-2024';
 const onlineUsers = new Map();
@@ -28,45 +28,58 @@ export const initializeSocket = (io) => {
       const { roomId, content } = data;
       if (!roomId || !content) return;
 
+      const db = getDb();
       db.run(
-        'INSERT INTO messages (room_id, user_id, content) VALUES (?, ?, ?)',
-        [roomId, socket.user.id, content],
-        function (err) {
-          if (err) return;
-
-          const message = {
-            id: this.lastID,
-            room_id: roomId,
-            user_id: socket.user.id,
-            username: socket.user.username,
-            content,
-            created_at: new Date().toISOString()
-          };
-
-          io.to(`room_${roomId}`).emit('message:new', message);
-        }
+        'INSERT INTO messages (room_id, user_id, content, status) VALUES (?, ?, ?, ?)',
+        [roomId, socket.user.id, content, 'sent']
       );
+      
+      const result = db.exec('SELECT last_insert_rowid() as id');
+      const messageId = result[0].values[0][0];
+      
+      saveDb();
+
+      const message = {
+        id: messageId,
+        room_id: roomId,
+        user_id: socket.user.id,
+        username: socket.user.username,
+        content,
+        status: 'sent',
+        created_at: new Date().toISOString()
+      };
+
+      io.to(`room_${roomId}`).emit('message:new', message);
     });
 
     socket.on('message:delivered', (data) => {
       const { messageId, roomId } = data;
+      const db = getDb();
       db.run('UPDATE messages SET status = ? WHERE id = ?', ['delivered', messageId]);
+      saveDb();
       io.to(`room_${roomId}`).emit('message:status', { messageId, status: 'delivered' });
     });
 
     socket.on('message:read', (data) => {
       const { roomId } = data;
-      db.all('SELECT id, user_id FROM messages WHERE room_id = ? AND user_id != ? AND status != ?', 
-        [roomId, socket.user.id, 'read'], 
-        (err, messages) => {
-          if (messages) {
-            messages.forEach(msg => {
-              db.run('UPDATE messages SET status = ? WHERE id = ?', ['read', msg.id]);
-              io.to(`room_${roomId}`).emit('message:status', { messageId: msg.id, status: 'read' });
-            });
-          }
-        }
+      const db = getDb();
+      
+      db.run(
+        `UPDATE messages SET status = 'read' WHERE room_id = ? AND user_id != ? AND status != 'read'`,
+        [roomId, socket.user.id]
       );
+      saveDb();
+      
+      const result = db.exec(
+        `SELECT id FROM messages WHERE room_id = ? AND user_id != ? AND status = 'read'`,
+        [roomId, socket.user.id]
+      );
+      
+      if (result.length > 0) {
+        result[0].values.forEach(row => {
+          io.to(`room_${roomId}`).emit('message:status', { messageId: row[0], status: 'read' });
+        });
+      }
     });
 
     socket.on('disconnect', () => {
