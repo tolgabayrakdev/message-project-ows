@@ -248,6 +248,10 @@ async function selectRoom(room) {
   currentRoom = room;
   renderRooms(await request('/chat/rooms'));
   
+  // Close sidebar on mobile after selecting a room
+  $('.rooms-sidebar').classList.remove('open');
+  $('#sidebar-overlay').classList.remove('active');
+  
   const messages = await request(`/chat/rooms/${room.id}/messages`);
   $('#messages-container').innerHTML = '';
   messages.forEach(msg => appendMessage(msg, false));
@@ -320,13 +324,15 @@ $('#new-room-btn').addEventListener('click', async () => {
 });
 
 $('#menu-toggle').addEventListener('click', () => {
-  $('.rooms-sidebar').classList.toggle('open');
+  const sidebar = $('.rooms-sidebar');
+  const overlay = $('#sidebar-overlay');
+  const isOpen = sidebar.classList.toggle('open');
+  overlay.classList.toggle('active', isOpen);
 });
 
-$('.chat-main').addEventListener('click', (e) => {
-  if (e.target !== $('.rooms-sidebar') && !$('.rooms-sidebar').contains(e.target)) {
-    $('.rooms-sidebar').classList.remove('open');
-  }
+$('#sidebar-overlay').addEventListener('click', () => {
+  $('.rooms-sidebar').classList.remove('open');
+  $('#sidebar-overlay').classList.remove('active');
 });
 
 checkAuth();
