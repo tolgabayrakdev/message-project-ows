@@ -109,6 +109,11 @@ $('#login-form').addEventListener('submit', async (e) => {
     return;
   }
   
+  const btn = e.target.querySelector('button[type="submit"]');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Giriş Yapılıyor...';
+
   try {
     const { token, user } = await request('/auth/login', {
       method: 'POST',
@@ -120,6 +125,9 @@ $('#login-form').addEventListener('submit', async (e) => {
     initChat();
   } catch (err) {
     showToast(err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
   }
 });
 
@@ -142,6 +150,11 @@ $('#register-form').addEventListener('submit', async (e) => {
     return;
   }
   
+  const btn = e.target.querySelector('button[type="submit"]');
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Kayıt Olunuyor...';
+
   try {
     const { token, user } = await request('/auth/register', {
       method: 'POST',
@@ -153,6 +166,9 @@ $('#register-form').addEventListener('submit', async (e) => {
     initChat();
   } catch (err) {
     showToast(err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalText;
   }
 });
 
